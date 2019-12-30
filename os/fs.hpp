@@ -15,17 +15,17 @@ public:
     if (fd == -1) throw std::logic_error("MemoryMappedFile: couldn't open file.");
 
     // obtain file size
-    struct stat sb {};
-    if (fstat(fd, &sb) == -1) throw std::logic_error("MemoryMappedFile: cannot stat file size");
-    m_filesize = sb.st_size;
+    struct stat sbuf {};
+    if (fstat(fd, &sbuf) == -1) throw std::logic_error("MemoryMappedFile: cannot stat file size");
+    _filesize = sbuf.st_size;
 
-    m_map = static_cast<const char*>(mmap(nullptr, m_filesize, PROT_READ, MAP_PRIVATE, fd, 0U));
-    if (m_map == MAP_FAILED) // NOLINT : doesn't work somehow?
+    _map = static_cast<const char*>(mmap(nullptr, _filesize, PROT_READ, MAP_PRIVATE, fd, 0U));
+    if (_map == MAP_FAILED) // NOLINT : doesn't work somehow?
       throw std::logic_error("MemoryMappedFile: cannot map file");
   }
 
   ~MemoryMappedFile() {
-    if (munmap(static_cast<void*>(const_cast<char*>(m_map)), m_filesize) == -1) // NOLINT
+    if (munmap(static_cast<void*>(const_cast<char*>(_map)), _filesize) == -1) // NOLINT
       std::cerr << "Warnng: MemoryMappedFile: error in destructor during `munmap()`\n";
   }
 
@@ -38,16 +38,16 @@ public:
   MemoryMappedFile& operator=(MemoryMappedFile&& other) = default;
 
   // char* pointers. up to callee to make string_views or strings
-  [[nodiscard]] const char* begin() const { return m_map; }
-  [[nodiscard]] const char* end() const { return m_map + m_filesize; } // NOLINT
+  [[nodiscard]] const char* begin() const { return _map; }
+  [[nodiscard]] const char* end() const { return _map + _filesize; } // NOLINT
 
   [[nodiscard]] std::string_view get_buffer() const {
     return std::string_view{begin(), static_cast<std::size_t>(end() - begin())} ;
   }
 
 private:
-  size_t      m_filesize = 0;
-  const char* m_map      = nullptr;
+  size_t      _filesize = 0;
+  const char* _map      = nullptr;
 };
 
 } // namespace os::fs
