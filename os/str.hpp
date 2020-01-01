@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -110,7 +111,7 @@ std::string_view trim_if(std::string_view sv,UnaryPredicate ischar) {
   return ltrim_if(rtrim_if(sv, ischar), ischar);
 }
 
-std::optional<std::string> trim_lower(std::string_view word) {
+inline std::optional<std::string> trim_lower(std::string_view word) {
   word = trim_if(word, ascii::isalpha);
   if (!word.empty()) {
     std::string output{word};
@@ -153,28 +154,43 @@ std::vector<std::string> split(const std::string& str, const std::string& delim)
 }
 
 template <typename InputIt>
-std::string join(InputIt first, InputIt last, const std::string& separator = ", ",
-                 const std::string& concluder = "") {
-  if (first == last) {
-    return concluder;
-  }
+std::ostream& join(std::ostream& stream, InputIt begin, InputIt end, const std::string& glue = ", ",
+                   const std::string& term = "") {
 
+  if (begin == end) return stream << term;
+
+  stream << *begin;
+  ++begin;
+
+  while (begin != end) {
+    stream << glue;
+    stream << *begin;
+    ++begin;
+  }
+  return stream << term;
+}
+
+template <typename InputIt>
+std::string join(InputIt begin, InputIt end, const std::string& glue = ", ",
+                 const std::string& term = "") {
   std::ostringstream ss;
-  ss << *first;
-  ++first;
-
-  while (first != last) {
-    ss << separator;
-    ss << *first;
-    ++first;
-  }
-
-  ss << concluder;
-
+  join(ss, begin, end, glue, term);
   return ss.str();
 }
 
-} // namespace os::str
+template <typename Container>
+std::ostream& join(std::ostream& stream, Container cont, const std::string& glue = ", ",
+                   const std::string& term = "") {
+  return join(stream, std::begin(cont), std::end(cont), glue, term);
+}
 
+template <typename Container>
+std::string join(Container cont, const std::string& glue = ", ", const std::string& term = "") {
+  std::ostringstream ss;
+  join(ss, std::begin(cont), std::end(cont), glue, term);
+  return ss.str(); // can't call this on the rvalue above LWG#1203
+}
+
+} // namespace os::str
 
 #endif // OS_STR_HPP
