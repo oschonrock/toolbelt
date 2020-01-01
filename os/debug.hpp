@@ -1,34 +1,46 @@
-#ifndef OS_STR_HPP
-#define OS_STR_HPP
+#ifndef OS_DEBUG_HPP
+#define OS_DEBUG_HPP
 
 #include <algorithm>
 #include <iostream>
+#include <vector>
+#include <set>
+#include <list>
+#include <map>
+
+// hacky. needs to be before str.hpp
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::pair<T,U>& pair) {
+  return stream << '(' << pair.first << ", " << pair.second << ")";
+}
+
+#include "os/str.hpp"
 
 namespace os::debug {
 
 // some debug swiss army knives
 
 #ifndef DEBUG
-#define DEBUG 0
+#define DEBUG 1  // not working conveniently from cmd line yet
 #endif
 
-#define DB(x) do { if (DEBUG) db_impl(__FILE__, __LINE__, #x, x); } while (0)
+#define DB(x) do { if (DEBUG) os::debug::db_impl(__FILE__, __LINE__, #x, x); } while (0)
 
 template <typename Arg>
 void db_impl(const char* file, int line, const char* varname, Arg value)
 {
-  std::cerr << file << ":" << line << ": warning: ";
-  std::cerr << varname << " = " << value << '\n';
+  std::cout << file << ":" << line << ": warning: ";
+  std::cout << varname << " = " << value << '\n';
 }
 
 
-#define DBP(...) do { if (DEBUG) dbp_impl(__FILE__, __LINE__, __VA_ARGS__); } while (0)
+#define DBP(...) do { if (DEBUG)  os::debug::dbp_impl(__FILE__, __LINE__, __VA_ARGS__); } while (0)
 
 template <typename... Args>
 void dbp_impl(const char* file, int line, Args&&... args)
 {
-  std::cerr << file << ":" << line << ": warning: ";
-  (std::cerr << ... << std::forward<Args>(args)) << '\n';
+  std::cout << file << ":" << line << ": warning: ";
+  (std::cout << ... << std::forward<Args>(args)) << '\n';
 }
 } // namespace os::debug
 
@@ -58,30 +70,35 @@ void dbp_impl(const char* file, int line, Args&&... args)
 // }
 
 
-// needs to be last, causes problems
 // debug printing of containers
+
 
 template <typename T>
 std::ostream& operator<<(std::ostream& stream, const std::vector<T>& container) {
-  stream << '{';
-  char comma[3] = {'\0', ' ', '\0'};
-  for (const T& elem: container) {
-    stream << comma << elem;
-    comma[0] = ',';
-  }
-  return stream << '}';
+  return os::str::join(stream << '[', container, ", ", "]\n");
 }
 
 template <typename T>
 std::ostream& operator<<(std::ostream& stream, const std::set<T>& container) {
-  stream << '[';
-  char comma[3] = {'\0', ' ', '\0'};
-  for (const T& elem: container) {
-    stream << comma << elem;
-    comma[0] = ',';
-  }
-  return stream << ']';
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const std::list<T>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::map<T,U>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T,U>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
 }
 
 
-#endif // OS_STR_HPP
+
+
+#endif // OS_DEBUG_HPP
