@@ -1,16 +1,16 @@
-#ifndef OS_STR_HPP
-#define OS_STR_HPP
+#pragma once
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <iostream>
+#include <list>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <functional>
-#include <list>
-#include <set>
 #include <vector>
+#include <charconv>
 
 namespace os::str {
 
@@ -34,33 +34,35 @@ inline constexpr bool isalphanum(char c) { return isalpha(c) || isnumeric(c) || 
 inline constexpr char tolower(char c) {
   constexpr auto offset = 'a' - 'A';
   static_assert(offset % 2 == 0); // it's 32 == 0x20 == 1 << 5  in ASCII
-  return c | offset;              //  NOLINT
+  return c | offset;              //  NOLINT  - ignore warnings because < 128
 }
+
+inline constexpr char toupper(char c) { return c & ~('a' - 'A'); } //  NOLINT  - ignore warnings
 
 } // namespace ascii
 
 inline void ltrim(std::string& s) {
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](char c) { return std::isspace(c) == 0; }));
 }
 
 inline void rtrim(std::string& s) {
-  s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(),
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](char c) { return std::isspace(c) == 0; }).base(),
           s.end());
 }
 
-inline std::string pad_left(std::string const& str, size_t s) {
-  return (str.size() < s) ? std::string(s - str.size(), ' ') + str : str;
+inline std::string lpad(const std::string& s, size_t size) {
+  return (s.size() < size) ? std::string(size - s.size(), ' ') + s : s;
 }
 
-inline std::string pad_right(std::string const& str, size_t s) {
-  return (str.size() < s) ? str + std::string(s - str.size(), ' ') : str;
+inline std::string rpad(const std::string& s, size_t size) {
+  return (s.size() < size) ? s + std::string(size - s.size(), ' ') : s;
 }
 
-inline void strtolower(std::string& s) {
+inline void tolower(std::string& s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
 }
 
-inline void strtoupper(std::string& s) {
+inline void toupper(std::string& s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 }
 
@@ -71,23 +73,26 @@ inline std::string ltrim_copy(std::string s) { ltrim(s); return s; }
 inline std::string rtrim_copy(std::string s) { rtrim(s); return s; }
 inline std::string trim_copy(std::string s) { trim(s); return s; }
 
-inline std::string strtolower_copy(std::string s) { strtolower(s); return s; }
-inline std::string strtoupper_copy(std::string s) { strtoupper(s); return s; }
+inline std::string tolower_copy(std::string s) { tolower(s); return s; }
+inline std::string toupper_copy(std::string s) { toupper(s); return s; }
 // clang-format on
 
 // std::string_view equivalents. different implementation, and "_copy" only because cheap
-inline std::string_view ltrim(std::string_view sv, std::string_view ignore_chars = ascii::spacechars()) {
+inline std::string_view ltrim(std::string_view sv,
+                              std::string_view ignore_chars = ascii::spacechars()) {
   sv.remove_prefix(std::min(sv.find_first_not_of(ignore_chars), sv.size()));
   return sv;
 }
 
-inline std::string_view rtrim(std::string_view sv, std::string_view ignore_chars = ascii::spacechars()) {
+inline std::string_view rtrim(std::string_view sv,
+                              std::string_view ignore_chars = ascii::spacechars()) {
   auto last = sv.find_last_not_of(ignore_chars);
   if (last != std::string_view::npos) sv.remove_suffix(sv.size() - last - 1);
   return sv;
 }
 
-inline std::string_view trim(std::string_view sv, std::string_view ignore_chars = ascii::spacechars()) {
+inline std::string_view trim(std::string_view sv,
+                             std::string_view ignore_chars = ascii::spacechars()) {
   return ltrim(rtrim(sv, ignore_chars), ignore_chars);
 }
 
@@ -107,7 +112,7 @@ std::string_view rtrim_if(std::string_view sv, UnaryPredicate ischar) {
 }
 
 template <typename UnaryPredicate>
-std::string_view trim_if(std::string_view sv,UnaryPredicate ischar) {
+std::string_view trim_if(std::string_view sv, UnaryPredicate ischar) {
   return ltrim_if(rtrim_if(sv, ischar), ischar);
 }
 
@@ -122,15 +127,15 @@ inline std::optional<std::string> trim_lower(std::string_view word) {
   return std::nullopt;
 }
 
-template <typename ActionFunction>
-void proc_words(std::string_view buffer, ActionFunction&& action) {
+template <typename ActionFunction, typename Predicate = decltype(ascii::isalpha)>
+void proc_words(std::string_view buffer, ActionFunction&& action, Predicate&& pred = ascii::isalpha) {
 
   const char*       begin = buffer.begin();
   const char*       curr  = begin;
   const char* const end   = buffer.end();
 
   while (curr != end) {
-    if (!ascii::isalpha(*curr)) {
+    if (!pred(*curr)) {
       auto maybe_word =
           trim_lower(std::string_view{&*begin, static_cast<std::size_t>(curr - begin)});
       if (maybe_word) action(*maybe_word);
@@ -140,16 +145,24 @@ void proc_words(std::string_view buffer, ActionFunction&& action) {
   }
 }
 
-std::vector<std::string> split(const std::string& str, const std::string& delim) {
+template<typename T>
+T from_chars(std::string_view sv) {
+    T val;
+    std::from_chars(sv.data(), sv.data() + sv.size(), val);
+    return val;
+}
+
+
+inline std::vector<std::string> split(const std::string& str, const std::string& delim) {
   std::vector<std::string> result;
-  size_t pos   = str.find(delim);
-  size_t start = 0;
+  size_t                   pos   = str.find(delim);
+  size_t                   start = 0;
   while (pos != std::string::npos) {
-    result.push_back(std::string(str.begin() + start, str.begin() + pos));
+    result.emplace_back(str.begin() + start, str.begin() + pos);
     start = pos + delim.size();
     pos   = str.find(delim, start);
   }
-  if (start != str.size()) result.push_back(std::string(str.begin() + start, str.end()));
+  if (start != str.size()) result.emplace_back(str.begin() + start, str.end());
   return result;
 }
 
@@ -192,5 +205,3 @@ std::string join(Container cont, const std::string& glue = ", ", const std::stri
 }
 
 } // namespace os::str
-
-#endif // OS_STR_HPP

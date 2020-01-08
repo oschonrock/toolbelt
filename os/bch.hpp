@@ -1,16 +1,16 @@
-#ifndef OS_BCH_HPP
-#define OS_BCH_HPP
+#pragma once
 
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <utility>
 
 namespace os::bch {
 // profiling
 
 class Timer {
 public:
-  Timer(std::string label_) : start{std::chrono::high_resolution_clock::now()}, label{label_} {};
+  explicit Timer(std::string label_) : start{std::chrono::high_resolution_clock::now()}, label{std::move(label_)} {}
 
   ~Timer() { print(); }
 
@@ -27,6 +27,3 @@ private:
 };
 
 } // namespace os::bch
-
-
-#endif // OS_BCH_HPP
