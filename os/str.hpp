@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <functional>
 #include <iostream>
 #include <list>
@@ -10,7 +11,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <charconv>
 
 namespace os::str {
 
@@ -128,7 +128,8 @@ inline std::optional<std::string> trim_lower(std::string_view word) {
 }
 
 template <typename ActionFunction, typename Predicate = decltype(ascii::isalpha)>
-void proc_words(std::string_view buffer, ActionFunction&& action, Predicate&& pred = ascii::isalpha) {
+void proc_words(std::string_view buffer, const ActionFunction& action,
+                const Predicate& pred = ascii::isalpha) {
 
   const char*       begin = buffer.begin();
   const char*       curr  = begin;
@@ -145,13 +146,12 @@ void proc_words(std::string_view buffer, ActionFunction&& action, Predicate&& pr
   }
 }
 
-template<typename T>
+template <typename T>
 T from_chars(std::string_view sv) {
-    T val;
-    std::from_chars(sv.data(), sv.data() + sv.size(), val);
-    return val;
+  T val;
+  std::from_chars(sv.data(), sv.data() + sv.size(), val);
+  return val;
 }
-
 
 inline std::vector<std::string> split(const std::string& str, const std::string& delim) {
   std::vector<std::string> result;
