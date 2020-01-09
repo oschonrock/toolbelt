@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <list>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -18,9 +19,12 @@ namespace ascii {
 
 inline constexpr bool isalpha(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
 
+inline constexpr bool isdigit(char c) { return (c >= '0' && c <= '9'); }
+
+inline constexpr bool isintegral(char c) { return isdigit(c) || (c == '-') || c == '+'; }
+
 inline constexpr bool isnumeric(char c) {
-  return (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.' || c == ',' || c == '^' ||
-         c == '*' || c == 'e' || c == 'E';
+  return isintegral(c) || c == '.' || c == ',' || c == '^' || c == '*' || c == 'e' || c == 'E';
 }
 
 inline constexpr bool isspace(char c) {
@@ -127,19 +131,17 @@ inline std::optional<std::string> trim_lower(std::string_view word) {
   return std::nullopt;
 }
 
-template <typename ActionFunction, typename Predicate = decltype(ascii::isalpha)>
-void proc_words(std::string_view buffer, const ActionFunction& action,
-                const Predicate& pred = ascii::isalpha) {
+template <typename ActionCallback, typename TokenPredicate = decltype(ascii::isalpha)>
+void for_each_token(std::string_view buffer, const ActionCallback& action,
+                    const TokenPredicate& token_pred = ascii::isalpha) {
 
   const char*       begin = buffer.begin();
   const char*       curr  = begin;
   const char* const end   = buffer.end();
 
   while (curr != end) {
-    if (!pred(*curr)) {
-      auto maybe_word =
-          trim_lower(std::string_view{&*begin, static_cast<std::size_t>(curr - begin)});
-      if (maybe_word) action(*maybe_word);
+    if (!token_pred(*curr)) {
+      action(std::string_view{&*begin, static_cast<std::size_t>(curr - begin)});
       begin = std::next(curr);
     }
     std::advance(curr, 1);
@@ -147,10 +149,12 @@ void proc_words(std::string_view buffer, const ActionFunction& action,
 }
 
 template <typename T>
-T from_chars(std::string_view sv) {
+std::optional<T> from_chars(std::string_view sv) {
   T val;
-  std::from_chars(sv.data(), sv.data() + sv.size(), val);
-  return val;
+  if (auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), val); ec == std::errc()) {
+    return std::optional<T>{val};
+  }
+  return std::nullopt;
 }
 
 inline std::vector<std::string> split(const std::string& str, const std::string& delim) {
