@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ryu/s2d.c"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -102,21 +103,21 @@ inline std::string_view trim(std::string_view sv,
 
 // std::string_view equivalents. different implementation, and "_copy" only because cheap
 template <typename UnaryPredicate>
-std::string_view ltrim_if(std::string_view sv, UnaryPredicate ischar) {
+std::string_view ltrim_if(std::string_view sv, const UnaryPredicate& ischar) {
   auto first = std::find_if(sv.begin(), sv.end(), ischar);
   if (first != sv.end()) sv.remove_prefix(first - sv.begin());
   return sv;
 }
 
 template <typename UnaryPredicate>
-std::string_view rtrim_if(std::string_view sv, UnaryPredicate ischar) {
+std::string_view rtrim_if(std::string_view sv, const UnaryPredicate& ischar) {
   auto last = find_if(sv.rbegin(), sv.rend(), ischar);
   if (last != sv.rend()) sv.remove_suffix(sv.end() - last.base());
   return sv;
 }
 
 template <typename UnaryPredicate>
-std::string_view trim_if(std::string_view sv, UnaryPredicate ischar) {
+std::string_view trim_if(std::string_view sv, const UnaryPredicate& ischar) {
   return ltrim_if(rtrim_if(sv, ischar), ischar);
 }
 
@@ -126,7 +127,7 @@ inline std::optional<std::string> trim_lower(std::string_view word) {
     std::string output{word};
     std::transform(output.begin(), output.end(), output.begin(),
                    [](auto c) { return ascii::tolower(c); });
-    return std::optional<std::string>{output};
+    return output; // auto wrapped in std::optional
   }
   return std::nullopt;
 }
@@ -152,10 +153,23 @@ template <typename T>
 std::optional<T> from_chars(std::string_view sv) {
   T val;
   if (auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), val); ec == std::errc()) {
-    return std::optional<T>{val};
+    return val;
   }
   return std::nullopt;
 }
+
+#if !defined(_MSC_VER)
+// full specialisation for double as a work arouns for clang/gcc
+// not supporting the float type -> use ryu
+template <>
+inline std::optional<double> from_chars(std::string_view sv) {
+  double val;
+  if (s2d_n(sv.data(), sv.length(), &val) == SUCCESS) {
+    return val;
+  }
+  return std::nullopt;
+}
+#endif
 
 inline std::vector<std::string> split(const std::string& str, const std::string& delim) {
   std::vector<std::string> result;
