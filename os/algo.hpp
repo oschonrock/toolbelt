@@ -2,10 +2,15 @@
 
 #include "flat_hash_map/bytell_hash_map.hpp"
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <iomanip>
 #include <limits>
 #include <list>
+#include <numeric>
+#include <vector>
+
+using std::size_t;
 
 // not really generic templates, but for now
 
@@ -34,18 +39,20 @@ void move_append_if(std::list<T>& origin, std::list<T>& destination, UnaryPredic
   }
 }
 
+// basic summary statistics
+
 template <typename T>
 struct stats {
-  std::size_t n = 0;
+  size_t n = 0;
 
   T min = std::numeric_limits<T>::max();
   T max = std::numeric_limits<T>::min();
   T sum = 0;
 
-  ska::bytell_hash_map<T, std::size_t> dist{};
+  ska::bytell_hash_map<T, size_t> dist{};
 
-  [[nodiscard]] std::size_t uniq_n() const noexcept { return dist.size(); }
-  [[nodiscard]] auto        mean() const noexcept { return sum * 1.0 / n; }
+  [[nodiscard]] size_t uniq_n() const noexcept { return dist.size(); }
+  [[nodiscard]] auto   mean() const noexcept { return sum * 1.0 / n; }
 
   void record(T a) {
     ++n;
@@ -65,4 +72,51 @@ struct stats {
                   << "mean    = " << st.mean() << '\n';
   }
 };
+
+// sorting parallel vectors: https://codereview.stackexchange.com/questions/235764
+
+template <typename T>
+void swap(size_t i, size_t j, std::vector<T>& v) {
+  std::swap(v[i], v[j]);
+}
+
+template <typename Comp, typename Vec, typename... Vecs>
+void parallel_sort(const Comp& comp, Vec& keyvec, Vecs&... vecs) {
+  (assert(keyvec.size() == vecs.size()), ...);
+  std::vector<size_t> index(keyvec.size());
+  std::iota(index.begin(), index.end(), 0);
+  std::sort(index.begin(), index.end(),
+            [&](size_t a, size_t b) { return comp(keyvec[a], keyvec[b]); });
+
+  for (size_t i = 0; i < index.size(); i++) {
+    if (index[i] != i) {
+      (swap(index[i], i, keyvec), ..., swap(index[i], i, vecs));
+      std::swap(index[index[i]], index[i]);
+    }
+  }
+}
+
+// template <typename T>
+// void test(const std::vector<T>& vec, const std::vector<T>& res) {
+//   assert(vec == res);
+// }
+
+// int main() {
+//   using value_t = int;
+//   using vec_t   = std::vector<value_t>;
+
+//   vec_t order{1, 0, 3, 2};
+//   vec_t v1{100, 200, 300, 400};
+//   vec_t v2{100, 200, 300, 400};
+//   vec_t v3{400, 200, 3000, 4000};
+//   vec_t v4{500, 200, 360, 400};
+
+//   parallel_sort(std::less<>(), order, v1, v2, v3, v4);
+
+//   test(v1, vec_t{200, 100, 400, 300});
+//   test(v2, vec_t{200, 100, 400, 300});
+//   test(v3, vec_t{200, 400, 4000, 3000});
+//   test(v4, vec_t{200, 500, 400, 360});
+// }
+
 } // namespace os::algo
