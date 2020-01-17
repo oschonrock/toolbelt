@@ -1,9 +1,11 @@
 #pragma once
 
+#include "ryu/d2s.c"
 #include "ryu/s2d.c"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <limits>
 #include <functional>
 #include <iostream>
 #include <list>
@@ -159,15 +161,41 @@ std::optional<T> from_chars(std::string_view sv) {
 }
 
 #if !defined(_MSC_VER)
-// full specialisation for double as a work arouns for clang/gcc
+// full specialisation for double as a work around for clang/gcc
 // not supporting the float type -> use ryu
 template <>
-inline std::optional<double> from_chars(std::string_view sv) {
+inline std::optional<double> from_chars<double>(std::string_view sv) {
   double val;
   if (s2d_n(sv.data(), sv.length(), &val) == SUCCESS) {
     return val;
   }
   return std::nullopt;
+}
+#endif
+
+template <typename T>
+std::string to_chars(T val) {
+  int bufsize = std::numeric_limits<T>::digits10 + 7;
+  char chars[bufsize]; // NOLINT
+  if(auto [p, ec] =std::to_chars(chars, chars + bufsize, val); ec == std::errc()) {
+    if (p >= chars + bufsize) {
+      throw std::logic_error("not enough space for null terminator");
+    }
+    *p = '\0';
+    return std::string{chars};
+  }
+  throw std::logic_error("to_chars failed: not enough space");
+}
+
+#if !defined(_MSC_VER)
+// full specialisation for double as a work around for clang/gcc
+// not supporting the float type -> use ryu
+template <>
+std::string to_chars<double>(double val) {
+  int bufsize = std::numeric_limits<double>::max_digits10 + 7;
+  char chars[bufsize]; // NOLINT
+  d2s_buffered(val, chars);
+  return std::string{chars};
 }
 #endif
 
