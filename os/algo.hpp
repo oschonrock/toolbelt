@@ -80,6 +80,25 @@ void swap(size_t i, size_t j, std::vector<T>& v) {
   std::swap(v[i], v[j]);
 }
 
+// adapted from https://en.cppreference.com/w/cpp/algorithm/set_intersection
+// assumes sorted data
+template <class InputIt1, class InputIt2>
+size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) {
+  size_t count = 0;
+  while (first1 != last1 && first2 != last2) {
+    if (*first1 < *first2) {
+      ++first1;
+    } else {
+      if (!(*first2 < *first1)) {
+        ++count;
+        ++first1;
+      }
+      ++first2;
+    }
+  }
+  return count;
+}
+
 template <typename Comp, typename Vec, typename... Vecs>
 void parallel_sort(const Comp& comp, Vec& keyvec, Vecs&... vecs) {
   (assert(keyvec.size() == vecs.size()), ...);
