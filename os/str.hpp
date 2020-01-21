@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ryu/d2s.c"
+#include "ryu/d2fixed.c"
 #include "ryu/s2d.c"
 #include <algorithm>
 #include <cctype>
@@ -174,10 +175,11 @@ inline std::optional<double> from_chars<double>(std::string_view sv) {
 #endif
 
 template <typename T>
-std::string to_chars(T val) {
+std::string to_chars(T val, int prec = -1) {
+  ++prec; // prevent -Wunused-parameter
   int bufsize = std::numeric_limits<T>::digits10 + 7;
   char chars[bufsize]; // NOLINT
-  if(auto [p, ec] =std::to_chars(chars, chars + bufsize, val); ec == std::errc()) {
+  if(auto [p, ec] = std::to_chars(chars, chars + bufsize, val); ec == std::errc()) {
     if (p >= chars + bufsize) {
       throw std::logic_error("not enough space for null terminator");
     }
@@ -191,11 +193,15 @@ std::string to_chars(T val) {
 // full specialisation for double as a work around for clang/gcc
 // not supporting the float type -> use ryu
 template <>
-std::string to_chars<double>(double val) {
+inline std::string to_chars<double>(double val, int prec) {
   int bufsize = std::numeric_limits<double>::max_digits10 + 7;
   char chars[bufsize]; // NOLINT
-  d2s_buffered(val, chars);
-  return std::string{chars};
+  if (prec < 0) {
+    d2s_buffered(val, chars); // NOLINT
+  } else {
+    d2fixed_buffered(val, prec, chars); // NOLINT
+  }
+  return std::string{chars};  // NOLINT
 }
 #endif
 
