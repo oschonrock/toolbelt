@@ -20,7 +20,8 @@ public:
 
   Timer(const Timer& other) = default;
   Timer& operator=(const Timer& other) = default;
-  Timer(Timer&& other)                 = default;
+
+  Timer(Timer&& other) = default;
   Timer& operator=(Timer&& other) = default;
 
   ~Timer() { print(); }
@@ -31,7 +32,7 @@ public:
     auto elapsed_s  = duration_cast<duration<double>>(elapsed).count();
     auto elapsed_ms = elapsed_s * 1000;
     char buf[50]{0};                                                // NOLINT
-    std::sprintf(buf, "%-20s %10.4f ms", label.data(), elapsed_ms); // NOLINT
+    std::sprintf(buf, "%-20s %12.4f ms", label.data(), elapsed_ms); // NOLINT
     std::cerr << buf << '\n';                                       // NOLINT
   }
 
