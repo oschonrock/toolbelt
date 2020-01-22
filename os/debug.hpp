@@ -1,5 +1,4 @@
-#ifndef OS_DEBUG_HPP
-#define OS_DEBUG_HPP
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -18,7 +17,7 @@ std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
 
 #include "os/str.hpp"
 
-namespace os::debug {
+namespace os {
 
 // some debug swiss army knives
 
@@ -39,7 +38,7 @@ void db_impl(const char* file, int line, const char* varname, Arg value) {
 
 #define DBP(...)                                                                                   \
   do {                                                                                             \
-    if (DEBUG) os::debug::dbp_impl(__FILE__, __LINE__, __VA_ARGS__);                               \
+    if (DEBUG) os::dbp_impl(__FILE__, __LINE__, __VA_ARGS__);                               \
   } while (0)
 
 template <typename... Args>
@@ -102,7 +101,7 @@ struct hd {
   }
 };
 
-} // namespace os::debug
+} // namespace os
 
 // example usage
 
@@ -155,5 +154,3 @@ template <typename T, typename U>
 std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T, U>& container) {
   return os::str::join(stream << '[', container, ", ", "]\n");
 }
-
-#endif // OS_DEBUG_HPP
