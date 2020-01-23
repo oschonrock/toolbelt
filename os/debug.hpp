@@ -1,19 +1,13 @@
 #pragma once
 
+#include "os/str.hpp"
+
 #include <iomanip>
 #include <iostream>
 #include <list>
 #include <map>
 #include <set>
 #include <vector>
-
-// hacky. needs to be before str.hpp
-template <typename T, typename U>
-std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
-  return stream << '(' << pair.first << ", " << pair.second << ")";
-}
-
-#include "os/str.hpp"
 
 namespace os {
 
@@ -41,7 +35,7 @@ private:
 };
 
 namespace detail {
-inline void print_adr(std::ostream& os, const void* adr) {
+inline void print_adr(std::ostream& os, const std::byte* adr) {
   os << std::setw(19) << std::setfill(' ') << adr; // NOLINT
 }
 
@@ -105,22 +99,26 @@ inline std::ostream& hex_dump(std::ostream& os, const std::byte* buffer, std::si
 }
 
 struct hd {
-  const void* buffer;
-  std::size_t bufsize;
+  const std::byte* buffer;
+  std::size_t      bufsize;
 
-  hd(const void* buf, std::size_t bufsz) : buffer{buf}, bufsize{bufsz} {}
+  hd(const void* buf, std::size_t bufsz)
+      : buffer{reinterpret_cast<const std::byte*>(buf)}, bufsize{bufsz} {}
 
   template <typename T>
-  explicit hd(const T& buf) : buffer{&buf}, bufsize{sizeof(T)} {}
+  explicit hd(const T& buf)
+      : buffer{reinterpret_cast<const std::byte*>(&buf)}, bufsize{sizeof(T)} {}
 
   template <> // note that string_view DOES NOT access sv[size()]
-  explicit hd(const std::string_view& buf) : buffer{buf.data()}, bufsize{buf.size()} {}
+  explicit hd(const std::string_view& buf)
+      : buffer{reinterpret_cast<const std::byte*>(buf.data())}, bufsize{buf.size()} {}
 
   template <> // note that string DOES access str[size()]
-  explicit hd(const std::string& buf) : buffer{buf.data()}, bufsize{buf.size() + 1} {}
+  explicit hd(const std::string& buf)
+      : buffer{reinterpret_cast<const std::byte*>(buf.data())}, bufsize{buf.size() + 1} {}
 
   friend std::ostream& operator<<(std::ostream& out, const hd& hd) {
-    return hex_dump(out, reinterpret_cast<const std::byte*>(hd.buffer), hd.bufsize); // NOLINT
+    return hex_dump(out, hd.buffer, hd.bufsize); // NOLINT
   }
 };
 
@@ -214,4 +212,9 @@ std::ostream& operator<<(std::ostream& stream, const std::map<T, U>& container) 
 template <typename T, typename U>
 std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T, U>& container) {
   return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
+  return stream << '(' << pair.first << ", " << pair.second << ")";
 }
