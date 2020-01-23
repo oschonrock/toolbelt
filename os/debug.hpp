@@ -17,8 +17,154 @@ std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
 
 namespace os {
 
-// some debug swiss army knives
-// example usage
+// utility: keeps states of an ostream, restores on destruction
+template <typename T>
+struct ostream_state {
+  explicit ostream_state(std::basic_ostream<T>& stream)
+      : stream_{stream}, flags_{stream.flags()}, fill_{stream.fill()} {}
+
+  ostream_state(const ostream_state& other) = delete;
+  ostream_state& operator=(const ostream_state& other) = delete;
+
+  ostream_state(ostream_state&& other) = delete;
+  ostream_state& operator=(ostream_state&& other) = delete;
+
+  ~ostream_state() {
+    stream_.flags(flags_);
+    stream_.fill(fill_);
+  }
+
+private:
+  std::basic_ostream<T>&                    stream_;
+  std::ios_base::fmtflags                   flags_;
+  typename std::basic_ostream<T>::char_type fill_;
+};
+
+namespace detail {
+inline void print_adr(std::ostream& os, const void* adr) {
+  os << std::setw(19) << std::setfill(' ') << adr; // NOLINT
+}
+
+inline void print_fill_advance(std::ostream& os, const std::byte*& buf, std::size_t cnt,
+                               const std::string& str) {
+  while (cnt-- != 0U) {
+    ++buf; // NOLINT
+    os << str;
+  }
+}
+
+inline void print_hex(std::ostream& os, const std::byte* buf, std::size_t linesize, std::size_t pre,
+                      std::size_t post) {
+  print_fill_advance(os, buf, pre, "-- ");
+  {
+    os << std::setfill('0') << std::hex;
+    auto cnt = linesize - pre - post;
+    while (cnt-- != 0U) os << std::setw(2) << static_cast<unsigned>(*buf++) << ' '; // NOLINT
+  }
+  print_fill_advance(os, buf, post, "-- ");
+}
+
+inline void print_ascii(std::ostream& os, const std::byte* buf, std::size_t linesize,
+                        std::size_t pre, std::size_t post) {
+  print_fill_advance(os, buf, pre, ".");
+  auto cnt = linesize - pre - post;
+  while (cnt-- != 0U) {
+    os << (std::isprint(static_cast<unsigned char>(*buf)) != 0 ? static_cast<char>(*buf) : '.');
+    ++buf; // NOLINT
+  }
+  print_fill_advance(os, buf, post, ".");
+}
+} // namespace detail
+
+inline std::ostream& hex_dump(std::ostream& os, const std::byte* buffer, std::size_t bufsize) {
+  if (buffer == nullptr || bufsize == 0) return os;
+
+  constexpr std::size_t linesize{16};
+  const std::byte*      buf{buffer};
+  std::size_t           pre =
+      reinterpret_cast<std::size_t>(buffer) % linesize; // Size of pre-buffer area  NOLINT
+  bufsize += pre;
+  buf -= pre; // NOLINT
+
+  auto state = ostream_state{os}; // save stream setting and restore at end of scope
+  while (bufsize != 0U) {
+    std::size_t post = bufsize < linesize ? linesize - bufsize : 0;
+
+    detail::print_adr(os, buf);
+    os << ": ";
+    detail::print_hex(os, buf, linesize, pre, post);
+    os << " | ";
+    detail::print_ascii(os, buf, linesize, pre, post);
+    os << "\n";
+
+    buf += linesize; // NOLINT
+    bufsize -= linesize - post;
+    pre = 0;
+  }
+  return os;
+}
+
+struct hd {
+  const void* buffer;
+  std::size_t bufsize;
+
+  hd(const void* buf, std::size_t bufsz) : buffer{buf}, bufsize{bufsz} {}
+
+  template <typename T>
+  explicit hd(const T& buf) : buffer{&buf}, bufsize{sizeof(T)} {}
+
+  template <> // note that string_view DOES NOT access sv[size()]
+  explicit hd(const std::string_view& buf) : buffer{buf.data()}, bufsize{buf.size()} {}
+
+  template <> // note that string DOES access str[size()]
+  explicit hd(const std::string& buf) : buffer{buf.data()}, bufsize{buf.size() + 1} {}
+
+  friend std::ostream& operator<<(std::ostream& out, const hd& hd) {
+    return hex_dump(out, reinterpret_cast<const std::byte*>(hd.buffer), hd.bufsize); // NOLINT
+  }
+};
+
+#ifndef DEBUG
+#define DEBUG 1 // not working conveniently from cmd line yet
+#endif
+
+#define DB(x)                                                                                      \
+  do {                                                                                             \
+    if (DEBUG) os::db_impl(__FILE__, __LINE__, #x, x);                                             \
+  } while (0)
+
+template <typename Arg>
+void db_impl(const char* file, int line, const char* varname, Arg& value) {
+  std::cerr << file << ":" << line << ": warning: ";
+  std::cerr << varname << " = " << value << '\n';
+}
+
+#define DBH(x)                                                                                     \
+  do {                                                                                             \
+    if (DEBUG) os::db_impl(__FILE__, __LINE__, #x, x);                                             \
+  } while (0)
+
+template <typename Arg>
+void dbh_impl(const char* file, int line, const char* varname, Arg& value) {
+  std::cerr << file << ":" << line << ": warning: ";
+  std::cerr << varname << " = " << value << "  hexdump:\n";
+  std::cerr << hd(value);
+}
+
+#define DBP(...)                                                                                   \
+  do {                                                                                             \
+    if (DEBUG) os::dbp_impl(__FILE__, __LINE__, __VA_ARGS__);                                      \
+  } while (0)
+
+template <typename... Args>
+void dbp_impl(const char* file, int line, Args&&... args) {
+  std::cerr << file << ":" << line << ": warning: ";
+  (std::cerr << ... << std::forward<Args>(args)) << '\n';
+}
+
+} // namespace os
+
+// quick debug example usage
 
 // void f(int num, std::string msg) {
 //   // do sth
@@ -42,136 +188,6 @@ namespace os {
 //   f(3, "hello");
 //   return 0;
 // }
-
-#ifndef DEBUG
-#define DEBUG 1 // not working conveniently from cmd line yet
-#endif
-
-#define DB(x)                                                                                      \
-  do {                                                                                             \
-    if (DEBUG) os::db_impl(__FILE__, __LINE__, #x, x);                                             \
-  } while (0)
-
-template <typename Arg>
-void db_impl(const char* file, int line, const char* varname, Arg value) {
-  std::cout << file << ":" << line << ": warning: ";
-  std::cout << varname << " = " << value << '\n';
-}
-
-#define DBP(...)                                                                                   \
-  do {                                                                                             \
-    if (DEBUG) os::dbp_impl(__FILE__, __LINE__, __VA_ARGS__);                                      \
-  } while (0)
-
-template <typename... Args>
-void dbp_impl(const char* file, int line, Args&&... args) {
-  std::cout << file << ":" << line << ": warning: ";
-  (std::cout << ... << std::forward<Args>(args)) << '\n';
-}
-
-// utility: keeps states of an ostream, restores on destruction
-template <typename T>
-struct ostream_state {
-  explicit ostream_state(std::basic_ostream<T>& stream)
-      : stream_{stream}, flags_{stream.flags()}, fill_{stream.fill()}, width_{stream.width()} {}
-
-  ostream_state(const ostream_state& other) = delete;
-  ostream_state& operator=(const ostream_state& other) = delete;
-
-  ostream_state(ostream_state&& other) = delete;
-  ostream_state& operator=(ostream_state&& other) = delete;
-
-  ~ostream_state() {
-    stream_.flags(flags_);
-    stream_.fill(fill_);
-    stream_.width(width_);
-  }
-
-private:
-  std::basic_ostream<T>&                    stream_;
-  std::ios_base::fmtflags                   flags_;
-  typename std::basic_ostream<T>::char_type fill_;
-  std::streamsize                           width_;
-};
-
-inline std::ostream& print_adr(std::ostream& os, const void* adr) {
-  auto state = ostream_state(os);
-  return os << std::setw(19) << std::setfill(' ') << adr; // NOLINT
-}
-
-inline std::ostream& print_byte(std::ostream& os, const unsigned char* ptr) {
-  auto state = ostream_state(os);
-  return os << std::setw(2) << std::setfill('0') << std::hex << static_cast<unsigned>(*ptr) << ' ';
-}
-
-inline std::ostream& print_ascii(std::ostream& os, const unsigned char* ptr) {
-  auto state = ostream_state(os);
-  return os << std::setw(2) << std::setfill('0') << std::hex << static_cast<unsigned>(*ptr) << ' ';
-}
-
-inline std::ostream& hex_dump(std::ostream& os, const void* buffer, std::size_t bufsize) {
-  if (buffer == nullptr || bufsize == 0) return os;
-
-  constexpr std::size_t maxline{16};
-
-  // buffer for printable characters
-  unsigned char  pbuf[maxline + 1]; // NOLINT
-  unsigned char* pbuf_curr{pbuf};   // NOLINT
-
-  const unsigned char* buf{reinterpret_cast<const unsigned char*>(buffer)}; // NOLINT
-
-  // pre-buffer area: floor(nearest maxline)
-  size_t      offset    = reinterpret_cast<size_t>(buffer) % maxline; // NOLINT
-  std::size_t linecount = maxline;
-  if (offset > 0) {
-    const void* prebuf = buf - offset; // NOLINT
-    print_adr(os, prebuf) << ": ";
-    while (offset--) { // underflow OK NOLINT
-      os << "-- ";
-      *pbuf_curr++ = '.'; // NOLINT
-      --linecount;
-    }
-  }
-
-  // main buffer area
-  while (bufsize) {                                    // NOLINT
-    if (pbuf_curr == pbuf) print_adr(os, buf) << ": "; // NOLINT
-    print_byte(os, buf);
-    *pbuf_curr++ = std::isprint(*buf) ? *buf : '.'; // NOLINT
-    if (--linecount == 0) {
-      *pbuf_curr++ = '\0';         // NOLINT
-      os << " | " << pbuf << '\n'; // NOLINT
-      pbuf_curr = pbuf;            // NOLINT
-      linecount = std::min(maxline, bufsize);
-    }
-    --bufsize;
-    ++buf; // NOLINT
-  }
-
-  // post buffer area: finish incomplete line
-  if (pbuf_curr != pbuf) {                                                               // NOLINT
-    for (*pbuf_curr++ = '\0'; pbuf_curr != &pbuf[maxline + 1]; ++pbuf_curr) os << "-- "; // NOLINT
-    os << " | " << pbuf << '\n';                                                         // NOLINT
-  }
-  return os;
-}
-
-struct hd {
-  const void* buffer;
-  std::size_t bufsize;
-
-  hd(const void* buf, std::size_t bufsz) : buffer{buf}, bufsize{bufsz} {}
-
-  // doesn't really work. can't detect the appropriate size
-  // template <typename T>
-  // explicit hd(const T& buf, std::size_t bufsz = sizeof(T)) : buffer{buf}, bufsize{bufsz} {}
-
-  friend std::ostream& operator<<(std::ostream& out, const hd& hd) {
-    return hex_dump(out, hd.buffer, hd.bufsize);
-  }
-};
-
-} // namespace os
 
 // debug printing of containers
 
