@@ -9,6 +9,8 @@
 #include <set>
 #include <vector>
 
+
+
 namespace os {
 
 // utility: keeps states of an ostream, restores on destruction
@@ -117,16 +119,25 @@ public:
   }
 
   // There is some debate but we believe str[size()] is legal via [] or *
-  // but UB via iterator. So here we DO show the '`0' terminator.
+  // but UB via iterator. So here we DO show the '\0' terminator.
   template <>
   explicit hd(const std::string& buf)
       : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
     auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());
     if (!(data_byte_ptr > buffer_ && data_byte_ptr < buffer_ + bufsize_)) {
       // not SBO, show the real string as well
-      child_ = std::make_unique<hd>(buf.data(), buf.size() + 1);
+      child_       = std::make_unique<hd>(buf.data(), buf.capacity() + 1);
       child_label_ = "heap string";
     }
+  }
+
+  // There is some debate but we believe str[size()] is legal via [] or *
+  // but UB via iterator. So here we DO show the '\0' terminator.
+  template <typename T>
+  explicit hd(const std::vector<T>& buf)
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
+    child_       = std::make_unique<hd>(buf.data(), (buf.capacity()) * sizeof(T));
+    child_label_ = "heap vector";
   }
 
   friend std::ostream& operator<<(std::ostream& os, const hd& hd) {
@@ -143,6 +154,38 @@ private:
   std::string         child_label_;
 };
 
+// debug printing of containers
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const std::vector<T>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const std::set<T>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const std::list<T>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::map<T, U>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T, U>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
+  return stream << '(' << pair.first << ", " << pair.second << ")";
+}
+
 #ifndef DEBUG
 #define DEBUG 1 // not working conveniently from cmd line yet
 #endif
@@ -155,18 +198,18 @@ private:
 template <typename Arg>
 void db_impl(const char* file, int line, const char* varname, Arg& value) {
   std::cerr << file << ":" << line << ": warning: ";
-  std::cerr << varname << " = " << value << '\n';
+  std::cerr << varname << " = '" << value << "'\n";
 }
 
 #define DBH(x)                                                                                     \
   do {                                                                                             \
-    if (DEBUG) os::db_impl(__FILE__, __LINE__, #x, x);                                             \
+    if (DEBUG) os::dbh_impl(__FILE__, __LINE__, #x, x);                                            \
   } while (0)
 
 template <typename Arg>
 void dbh_impl(const char* file, int line, const char* varname, Arg& value) {
   std::cerr << file << ":" << line << ": warning: ";
-  std::cerr << varname << " = " << value << "  hexdump:\n";
+  std::cerr << varname << " = '" << value << "'  hexdump:\n";
   std::cerr << hd(value);
 }
 
@@ -207,35 +250,3 @@ void dbp_impl(const char* file, int line, Args&&... args) {
 //   f(3, "hello");
 //   return 0;
 // }
-
-// debug printing of containers
-
-template <typename T>
-std::ostream& operator<<(std::ostream& stream, const std::vector<T>& container) {
-  return os::str::join(stream << '[', container, ", ", "]\n");
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& stream, const std::set<T>& container) {
-  return os::str::join(stream << '[', container, ", ", "]\n");
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& stream, const std::list<T>& container) {
-  return os::str::join(stream << '[', container, ", ", "]\n");
-}
-
-template <typename T, typename U>
-std::ostream& operator<<(std::ostream& stream, const std::map<T, U>& container) {
-  return os::str::join(stream << '[', container, ", ", "]\n");
-}
-
-template <typename T, typename U>
-std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T, U>& container) {
-  return os::str::join(stream << '[', container, ", ", "]\n");
-}
-
-template <typename T, typename U>
-std::ostream& operator<<(std::ostream& stream, const std::pair<T, U>& pair) {
-  return stream << '(' << pair.first << ", " << pair.second << ")";
-}
