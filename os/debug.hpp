@@ -42,7 +42,7 @@ inline void print_adr(std::ostream& os, const std::byte* adr) {
 inline void print_fill_advance(std::ostream& os, const std::byte*& buf, std::size_t cnt,
                                const std::string& str) {
   while (cnt-- != 0U) {
-    ++buf; // NOLINT
+    ++buf; // NOTE: unusually this in passsed in by ref and we advance it. NOLINT
     os << str;
   }
 }
@@ -98,28 +98,49 @@ inline std::ostream& hex_dump(std::ostream& os, const std::byte* buffer, std::si
   return os;
 }
 
-struct hd {
-  const std::byte* buffer;
-  std::size_t      bufsize;
-
+class hd {
+public:
   hd(const void* buf, std::size_t bufsz)
-      : buffer{reinterpret_cast<const std::byte*>(buf)}, bufsize{bufsz} {}
+      : buffer_{reinterpret_cast<const std::byte*>(buf)}, bufsize_{bufsz} {}
 
   template <typename T>
   explicit hd(const T& buf)
-      : buffer{reinterpret_cast<const std::byte*>(&buf)}, bufsize{sizeof(T)} {}
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(T)} {}
 
-  template <> // note that string_view DOES NOT access sv[size()]
+  // It's UB to access `+ 1`th byte of a string_view so we don't, despite most
+  // targets of string_views (ie std::string or string literal) having '\0'.
+  template <>
   explicit hd(const std::string_view& buf)
-      : buffer{reinterpret_cast<const std::byte*>(buf.data())}, bufsize{buf.size()} {}
-
-  template <> // note that string DOES access str[size()]
-  explicit hd(const std::string& buf)
-      : buffer{reinterpret_cast<const std::byte*>(buf.data())}, bufsize{buf.size() + 1} {}
-
-  friend std::ostream& operator<<(std::ostream& out, const hd& hd) {
-    return hex_dump(out, hd.buffer, hd.bufsize); // NOLINT
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
+    child_       = std::make_unique<hd>(buf.data(), buf.size());
+    child_label_ = "string viewed";
   }
+
+  // There is some debate but we believe str[size()] is legal via [] or *
+  // but UB via iterator. So here we DO show the '`0' terminator.
+  template <>
+  explicit hd(const std::string& buf)
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
+    auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());
+    if (!(data_byte_ptr > buffer_ && data_byte_ptr < buffer_ + bufsize_)) {
+      // not SBO, show the real string as well
+      child_ = std::make_unique<hd>(buf.data(), buf.size() + 1);
+      child_label_ = "heap string";
+    }
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const hd& hd) {
+    hex_dump(os, hd.buffer_, hd.bufsize_); // NOLINT
+    if (hd.child_) os << std::setw(19) << hd.child_label_ << ":\n" << *(hd.child_);
+    return os;
+  }
+
+private:
+  const std::byte* buffer_;
+  std::size_t      bufsize_;
+
+  std::unique_ptr<hd> child_ = nullptr;
+  std::string         child_label_;
 };
 
 #ifndef DEBUG
