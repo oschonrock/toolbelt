@@ -1,8 +1,7 @@
 #pragma once
 
-#include "ryu/d2s.c"
-#include "ryu/d2fixed.c"
-#include "ryu/s2d.c"
+#include "ryu/ryu.h"
+#include "ryu/ryu_parse.h"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
