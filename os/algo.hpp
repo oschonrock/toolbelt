@@ -101,7 +101,9 @@ size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, Inpu
 
 template <typename Comp, typename Vec, typename... Vecs>
 void parallel_sort(const Comp& comp, Vec& keyvec, Vecs&... vecs) {
+  #ifndef NDEBUG
   (assert(keyvec.size() == vecs.size()), ...);
+  #endif
   std::vector<size_t> index(keyvec.size());
   std::iota(index.begin(), index.end(), 0);
   std::sort(index.begin(), index.end(),
