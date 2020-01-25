@@ -2,14 +2,13 @@
 
 #include "os/str.hpp"
 
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <list>
 #include <map>
 #include <set>
 #include <vector>
-
-
 
 namespace os {
 
@@ -103,17 +102,17 @@ inline std::ostream& hex_dump(std::ostream& os, const std::byte* buffer, std::si
 class hd {
 public:
   hd(const void* buf, std::size_t bufsz)
-      : buffer_{reinterpret_cast<const std::byte*>(buf)}, bufsize_{bufsz} {}
+      : buffer_{static_cast<const std::byte*>(buf)}, bufsize_{bufsz} {}
 
   template <typename T>
   explicit hd(const T& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(T)} {}
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(T)} {} // NOLINT
 
   // It's UB to access `+ 1`th byte of a string_view so we don't, despite most
   // targets of string_views (ie std::string or string literal) having '\0'.
   template <>
   explicit hd(const std::string_view& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
     child_       = std::make_unique<hd>(buf.data(), buf.size());
     child_label_ = "string viewed";
   }
@@ -122,8 +121,8 @@ public:
   // but UB via iterator. So here we DO show the '\0' terminator.
   template <>
   explicit hd(const std::string& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
-    auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
+    auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());           // NOLINT
     if (!(data_byte_ptr > buffer_ && data_byte_ptr < buffer_ + bufsize_)) {
       // not SBO, show the real string as well
       child_       = std::make_unique<hd>(buf.data(), buf.capacity() + 1);
@@ -135,7 +134,7 @@ public:
   // but UB via iterator. So here we DO show the '\0' terminator.
   template <typename T>
   explicit hd(const std::vector<T>& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} {
+      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
     child_       = std::make_unique<hd>(buf.data(), (buf.capacity()) * sizeof(T));
     child_label_ = "heap vector";
   }
