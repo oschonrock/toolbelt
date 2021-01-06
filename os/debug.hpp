@@ -108,28 +108,6 @@ public:
   explicit hd(const T& buf)
       : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(T)} {} // NOLINT
 
-  // It's UB to access `+ 1`th byte of a string_view so we don't, despite most
-  // targets of string_views (ie std::string or string literal) having '\0'.
-  template <>
-  explicit hd(const std::string_view& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
-    child_       = std::make_unique<hd>(buf.data(), buf.size());
-    child_label_ = "string viewed";
-  }
-
-  // There is some debate but we believe str[size()] is legal via [] or *
-  // but UB via iterator. So here we DO show the '\0' terminator.
-  template <>
-  explicit hd(const std::string& buf)
-      : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
-    auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());           // NOLINT
-    if (!(data_byte_ptr > buffer_ && data_byte_ptr < buffer_ + bufsize_)) {
-      // not SBO, show the real string as well
-      child_       = std::make_unique<hd>(buf.data(), buf.capacity() + 1);
-      child_label_ = "heap string";
-    }
-  }
-
   // There is some debate but we believe str[size()] is legal via [] or *
   // but UB via iterator. So here we DO show the '\0' terminator.
   template <typename T>
@@ -139,7 +117,8 @@ public:
     child_label_ = "heap vector";
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const hd& hd) {
+  friend std::ostream&
+  operator<<(std::ostream& os, const hd& hd) {
     hex_dump(os, hd.buffer_, hd.bufsize_); // NOLINT
     if (hd.child_) os << std::setw(19) << hd.child_label_ << ":\n" << *(hd.child_);
     return os;
@@ -152,6 +131,30 @@ private:
   std::unique_ptr<hd> child_ = nullptr;
   std::string         child_label_;
 };
+
+// explicit specializations have to be outsdie of class for gcc
+
+// It's UB to access `+ 1`th byte of a string_view so we don't, despite most
+// targets of string_views (ie std::string or string literal) having '\0'.
+template <>
+inline hd::hd(const std::string_view& buf)
+    : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
+  child_       = std::make_unique<hd>(buf.data(), buf.size());
+  child_label_ = "string viewed";
+}
+
+// There is some debate but we believe str[size()] is legal via [] or *
+// but UB via iterator. So here we DO show the '\0' terminator.
+template <>
+inline hd::hd(const std::string& buf)
+    : buffer_{reinterpret_cast<const std::byte*>(&buf)}, bufsize_{sizeof(buf)} { // NOLINT
+  auto data_byte_ptr = reinterpret_cast<const std::byte*>(buf.data());           // NOLINT
+  if (!(data_byte_ptr > buffer_ && data_byte_ptr < buffer_ + bufsize_)) {
+    // not SBO, show the real string as well
+    child_       = std::make_unique<hd>(buf.data(), buf.capacity() + 1);
+    child_label_ = "heap string";
+  }
+}
 
 // debug printing of containers
 
@@ -208,7 +211,7 @@ void db_impl(const char* file, int line, const char* varname, Arg& value) {
 template <typename Arg>
 void dbh_impl(const char* file, int line, const char* varname, Arg& value) {
   std::cerr << file << ":" << line << ": warning: ";
-  std::cerr << varname << " = '" << value << "'  hexdump:\n";
+  std::cerr << varname << "  hexdump:\n";
   std::cerr << hd(value);
 }
 
