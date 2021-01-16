@@ -5,6 +5,7 @@
 #include <cassert>
 #include <functional>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <numeric>
@@ -97,6 +98,19 @@ size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, Inpu
     }
   }
   return count;
+}
+
+template <class ContainerA, class ContainerB>
+size_t count_intersection(ContainerA a, ContainerB b) {
+  return count_intersection(a.begin(), a.end(), b.begin(), b.end());
+}
+
+
+template <class Container>
+Container intersection(Container a, Container b) {
+  auto c = Container{};
+  set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_insert_iterator<Container>(c));
+  return c;
 }
 
 template <typename Comp, typename Vec, typename... Vecs>
