@@ -1,14 +1,12 @@
 #pragma once
 
-#include "ryu/d2s.c"
-#include "ryu/d2fixed.c"
-#include "ryu/s2d.c"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
-#include <limits>
+#include <cstddef>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <list>
 #include <optional>
 #include <set>
@@ -18,7 +16,6 @@
 #include <vector>
 
 namespace os::str {
-
 namespace ascii {
 
 inline constexpr bool isalpha(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
@@ -49,15 +46,6 @@ inline constexpr char toupper(char c) { return c & ~('a' - 'A'); } //  NOLINT  -
 
 } // namespace ascii
 
-inline void ltrim(std::string& s) {
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](char c) { return std::isspace(c) == 0; }));
-}
-
-inline void rtrim(std::string& s) {
-  s.erase(std::find_if(s.rbegin(), s.rend(), [](char c) { return std::isspace(c) == 0; }).base(),
-          s.end());
-}
-
 inline std::string lpad(const std::string& s, size_t size) {
   return (s.size() < size) ? std::string(size - s.size(), ' ') + s : s;
 }
@@ -75,11 +63,19 @@ inline void toupper(std::string& s) {
 }
 
 // clang-format off
-inline void trim(std::string& s) { ltrim(s); rtrim(s); }
+inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
+  s.erase(0, s.find_first_not_of(delims));
+}
 
-inline std::string ltrim_copy(std::string s) { ltrim(s); return s; }
-inline std::string rtrim_copy(std::string s) { rtrim(s); return s; }
-inline std::string trim_copy(std::string s) { trim(s); return s; }
+inline void rtrim(std::string& s, std::string_view delims = " \v\t\n\r") {
+  s.erase(s.find_last_not_of(delims));
+}
+
+inline void trim(std::string& s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); rtrim(s); }
+
+inline std::string ltrim_copy(std::string s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); return s; }
+inline std::string rtrim_copy(std::string s, std::string_view delims = " \v\t\n\r") { rtrim(s, delims); return s; }
+inline std::string trim_copy(std::string s, std::string_view delims = " \v\t\n\r") { trim(s, delims); return s; }
 
 inline std::string tolower_copy(std::string s) { tolower(s); return s; }
 inline std::string toupper_copy(std::string s) { toupper(s); return s; }
@@ -108,14 +104,14 @@ inline std::string_view trim(std::string_view sv,
 template <typename UnaryPredicate>
 std::string_view ltrim_if(std::string_view sv, const UnaryPredicate& ischar) {
   auto first = std::find_if(sv.begin(), sv.end(), ischar);
-  if (first != sv.end()) sv.remove_prefix(first - sv.begin());
+  if (first != sv.end()) sv.remove_prefix(static_cast<std::size_t>(first - sv.begin()));
   return sv;
 }
 
 template <typename UnaryPredicate>
 std::string_view rtrim_if(std::string_view sv, const UnaryPredicate& ischar) {
   auto last = find_if(sv.rbegin(), sv.rend(), ischar);
-  if (last != sv.rend()) sv.remove_suffix(sv.end() - last.base());
+  if (last != sv.rend()) sv.remove_suffix(static_cast<std::size_t>(sv.end() - last.base()));
   return sv;
 }
 
@@ -152,70 +148,49 @@ void for_each_token(std::string_view buffer, const ActionCallback& action,
   }
 }
 
-template <typename T>
-std::optional<T> from_chars(std::string_view sv) {
-  T val;
-  if (auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), val); ec == std::errc()) {
-    return val;
+inline std::vector<std::string> explode(const std::string& delims, const std::string& s) {
+  std::vector<std::string> pieces;
+  auto                     start = 0UL;
+  auto                     end   = s.find_first_of(delims);
+  while (end != std::string::npos) {
+    pieces.emplace_back(s.substr(start, end - start).c_str());
+    start = end + delims.size();
+    end   = s.find_first_of(delims, start);
   }
-  return std::nullopt;
+  pieces.emplace_back(s.substr(start).c_str());
+  return pieces;
 }
 
-#if !defined(_MSC_VER)
-// full specialisation for double as a work around for clang/gcc
-// not supporting the float type -> use ryu
-template <>
-inline std::optional<double> from_chars<double>(std::string_view sv) {
-  double val;
-  if (s2d_n(sv.data(), sv.length(), &val) == SUCCESS) {
-    return val;
+inline std::vector<std::string_view> explode_sv(const std::string_view& delims, const std::string_view& sv) {
+  std::vector<std::string_view> pieces;
+  auto                     start = 0UL;
+  auto                     end   = sv.find_first_of(delims);
+  while (end != std::string::npos) {
+    pieces.emplace_back(sv.substr(start, end - start));
+    start = end + delims.size();
+    end   = sv.find_first_of(delims, start);
   }
-  return std::nullopt;
-}
-#endif
-
-template <typename T>
-std::string to_chars(T val, int prec = -1) {
-  ++prec; // prevent -Wunused-parameter
-  int bufsize = std::numeric_limits<T>::digits10 + 7;
-  char chars[bufsize]; // NOLINT
-  if(auto [p, ec] = std::to_chars(chars, chars + bufsize, val); ec == std::errc()) {
-    if (p >= chars + bufsize) {
-      throw std::logic_error("not enough space for null terminator");
-    }
-    *p = '\0';
-    return std::string{chars};
-  }
-  throw std::logic_error("to_chars failed: not enough space");
+  pieces.emplace_back(sv.substr(start));
+  return pieces;
 }
 
-#if !defined(_MSC_VER)
-// full specialisation for double as a work around for clang/gcc
-// not supporting the float type -> use ryu
-template <>
-inline std::string to_chars<double>(double val, int prec) {
-  int bufsize = std::numeric_limits<double>::max_digits10 + 7;
-  char chars[bufsize]; // NOLINT
-  if (prec < 0) {
-    d2s_buffered(val, chars); // NOLINT
-  } else {
-    d2fixed_buffered(val, prec, chars); // NOLINT
-  }
-  return std::string{chars};  // NOLINT
-}
-#endif
-
-inline std::vector<std::string> split(const std::string& str, const std::string& delim) {
-  std::vector<std::string> result;
-  size_t                   pos   = str.find(delim);
-  size_t                   start = 0;
+inline void replace_all(std::string& subject, const std::string_view& search,
+                 const std::string_view& replace) {
+  size_t pos = subject.find(search);
   while (pos != std::string::npos) {
-    result.emplace_back(str.begin() + start, str.begin() + pos);
-    start = pos + delim.size();
-    pos   = str.find(delim, start);
+    subject.replace(pos, search.size(), replace);
+    pos = subject.find(search, pos + replace.size());
   }
-  if (start != str.size()) result.emplace_back(str.begin() + start, str.end());
-  return result;
+}
+
+inline std::string replace_all_copy(std::string subject, const std::string_view& search,
+                             const std::string_view& replace) {
+  replace_all(subject, search, replace);
+  return subject;
+}
+
+inline bool contains(std::string_view needle, std::string_view s) {
+  return s.find(needle) != std::string::npos;
 }
 
 template <typename InputIt>
