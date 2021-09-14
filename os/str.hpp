@@ -68,7 +68,7 @@ inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
 }
 
 inline void rtrim(std::string& s, std::string_view delims = " \v\t\n\r") {
-  s.erase(s.find_last_not_of(delims));
+  s.erase(s.find_last_not_of(delims) + 1); // npos wraps to zero
 }
 
 inline void trim(std::string& s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); rtrim(s); }
@@ -153,11 +153,11 @@ inline std::vector<std::string> explode(const std::string& delims, const std::st
   auto                     start = 0UL;
   auto                     end   = s.find_first_of(delims);
   while (end != std::string::npos) {
-    pieces.emplace_back(s.substr(start, end - start).c_str());
+    pieces.emplace_back(s.substr(start, end - start));
     start = end + delims.size();
     end   = s.find_first_of(delims, start);
   }
-  pieces.emplace_back(s.substr(start).c_str());
+  pieces.emplace_back(s.substr(start));
   return pieces;
 }
 
