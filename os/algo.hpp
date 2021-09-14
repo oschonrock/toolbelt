@@ -1,6 +1,5 @@
 #pragma once
 
-#include "flat_hash_map/bytell_hash_map.hpp"
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -11,11 +10,28 @@
 #include <numeric>
 #include <vector>
 
-using std::size_t;
-
-// not really generic templates, but for now
-
 namespace os::algo {
+
+template <typename T, typename TIter = decltype(std::begin(std::declval<T>())),
+          typename = decltype(std::end(std::declval<T>()))>
+constexpr auto enumerate(T&& iterable) {
+  struct iterator {
+    std::size_t i;
+    TIter       iter;
+    bool        operator!=(const iterator& other) const { return iter != other.iter; }
+    void        operator++() {
+      ++i;
+      ++iter;
+    }
+    auto operator*() const { return std::tie(i, *iter); }
+  };
+  struct iterable_wrapper {
+    T    iterable;
+    auto begin() { return iterator{0, std::begin(iterable)}; }
+    auto end() { return iterator{0, std::end(iterable)}; }
+  };
+  return iterable_wrapper{std::forward<T>(iterable)};
+}
 
 template <template <typename...> class Container, typename T, typename UnaryPredicate>
 void move_append_if(Container<T>& origin, Container<T>& destination, UnaryPredicate&& predicate) {
@@ -40,52 +56,11 @@ void move_append_if(std::list<T>& origin, std::list<T>& destination, UnaryPredic
   }
 }
 
-// basic summary statistics
-
-template <typename T>
-struct stats {
-  size_t n = 0;
-
-  T min = std::numeric_limits<T>::max();
-  T max = std::numeric_limits<T>::min();
-  T sum = 0;
-
-  ska::bytell_hash_map<T, size_t> dist{};
-
-  [[nodiscard]] size_t uniq_n() const noexcept { return dist.size(); }
-  [[nodiscard]] auto   mean() const noexcept { return sum * 1.0 / n; }
-
-  void record(T a) {
-    ++n;
-    sum += a;
-    if (a < min) min = a;
-    if (a > max) max = a;
-    ++dist[a];
-  }
-
-  friend std::ostream& operator<<(std::ostream& stream, const stats& st) {
-    return stream << std::setprecision(std::numeric_limits<T>::max_digits10)
-                  << "n       = " << st.n << '\n'
-                  << "uniq_n  = " << st.uniq_n() << '\n'
-                  << "min     = " << st.min << '\n'
-                  << "max     = " << st.max << '\n'
-                  << "sum     = " << st.sum << '\n'
-                  << "mean    = " << st.mean() << '\n';
-  }
-};
-
-// sorting parallel vectors: https://codereview.stackexchange.com/questions/235764
-
-template <typename T>
-void swap(size_t i, size_t j, std::vector<T>& v) {
-  std::swap(v[i], v[j]);
-}
-
 // adapted from https://en.cppreference.com/w/cpp/algorithm/set_intersection
 // assumes sorted data
 template <class InputIt1, class InputIt2>
-size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) {
-  size_t count = 0;
+std::size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) {
+  std::size_t count = 0;
   while (first1 != last1 && first2 != last2) {
     if (*first1 < *first2) {
       ++first1;
@@ -101,32 +76,38 @@ size_t count_intersection(InputIt1 first1, InputIt1 last1, InputIt2 first2, Inpu
 }
 
 template <class ContainerA, class ContainerB>
-size_t count_intersection(ContainerA a, ContainerB b) {
+std::size_t count_intersection(ContainerA a, ContainerB b) {
   return count_intersection(a.begin(), a.end(), b.begin(), b.end());
 }
-
 
 template <class Container>
 Container intersection(Container a, Container b) {
   auto c = Container{};
-  set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_insert_iterator<Container>(c));
+  std::set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_insert_iterator<Container>(c));
   return c;
+}
+
+// sorting parallel vectors: https://codereview.stackexchange.com/questions/235764
+
+template <typename T>
+void swap(std::size_t i, std::size_t j, std::vector<T>& v) {
+  std::swap(v[i], v[j]);
 }
 
 template <typename Comp, typename Vec, typename... Vecs>
 void parallel_sort(const Comp& comp, Vec& keyvec, Vecs&... vecs) {
-  #ifndef NDEBUG
+#ifndef NDEBUG
   (assert(keyvec.size() == vecs.size()), ...);
-  #endif
-  std::vector<size_t> index(keyvec.size());
+#endif
+  std::vector<std::size_t> index(keyvec.size());
   std::iota(index.begin(), index.end(), 0);
   std::sort(index.begin(), index.end(),
-            [&](size_t a, size_t b) { return comp(keyvec[a], keyvec[b]); });
+            [&](std::size_t a, std::size_t b) { return comp(keyvec[a], keyvec[b]); });
 
-  for (size_t i = 0; i < index.size(); i++) {
-    if (index[i] != i) {
-      (swap(index[i], i, keyvec), ..., swap(index[i], i, vecs));
-      std::swap(index[index[i]], index[i]);
+  for (auto&& [i, idx]: enumerate(index)) {
+    if (idx != i) {
+      (swap(idx, i, keyvec), ..., swap(idx, i, vecs));
+      std::swap(index[idx], idx);
     }
   }
 }
