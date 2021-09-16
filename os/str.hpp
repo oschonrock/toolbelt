@@ -62,6 +62,24 @@ inline void toupper(std::string& s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 }
 
+// faster and stricter alternative to std::stol if you have a char*
+inline long parse_long(const char* str) {
+  char* end; // NOLINT
+  errno    = 0;
+  long val = std::strtol(str, &end, 0);
+  if (end == str || *end != '\0' || errno == ERANGE)
+    throw std::invalid_argument("failed to covert");
+  return val;
+}
+
+// faster and stricter alternative to std::stoi if you have a char*
+inline int parse_int(const char* str) {
+  long long_val = parse_long(str);
+  if (long_val < std::numeric_limits<int>::min() || long_val > std::numeric_limits<int>::max())
+    throw std::range_error("int out of range");
+  return static_cast<int>(long_val);
+}
+
 // clang-format off
 inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
   s.erase(0, s.find_first_not_of(delims));
