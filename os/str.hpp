@@ -71,7 +71,7 @@ inline void rtrim(std::string& s, std::string_view delims = " \v\t\n\r") {
   s.erase(s.find_last_not_of(delims) + 1); // npos wraps to zero
 }
 
-inline void trim(std::string& s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); rtrim(s); }
+inline void trim(std::string& s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); rtrim(s, delims); }
 
 inline std::string ltrim_copy(std::string s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); return s; }
 inline std::string rtrim_copy(std::string s, std::string_view delims = " \v\t\n\r") { rtrim(s, delims); return s; }
@@ -161,10 +161,11 @@ inline std::vector<std::string> explode(const std::string& delims, const std::st
   return pieces;
 }
 
-inline std::vector<std::string_view> explode_sv(const std::string_view& delims, const std::string_view& sv) {
+inline std::vector<std::string_view> explode_sv(const std::string_view& delims,
+                                                const std::string_view& sv) {
   std::vector<std::string_view> pieces;
-  auto                     start = 0UL;
-  auto                     end   = sv.find_first_of(delims);
+  auto                          start = 0UL;
+  auto                          end   = sv.find_first_of(delims);
   while (end != std::string::npos) {
     pieces.emplace_back(sv.substr(start, end - start));
     start = end + delims.size();
@@ -175,7 +176,7 @@ inline std::vector<std::string_view> explode_sv(const std::string_view& delims, 
 }
 
 inline void replace_all(std::string& subject, const std::string_view& search,
-                 const std::string_view& replace) {
+                        const std::string_view& replace) {
   size_t pos = subject.find(search);
   while (pos != std::string::npos) {
     subject.replace(pos, search.size(), replace);
@@ -184,7 +185,7 @@ inline void replace_all(std::string& subject, const std::string_view& search,
 }
 
 inline std::string replace_all_copy(std::string subject, const std::string_view& search,
-                             const std::string_view& replace) {
+                                    const std::string_view& replace) {
   replace_all(subject, search, replace);
   return subject;
 }
@@ -208,6 +209,13 @@ std::ostream& join(std::ostream& stream, InputIt begin, InputIt end, const std::
     ++begin;
   }
   return stream << term;
+}
+
+template <typename T>
+std::string stringify(T t) {
+  std::stringstream s;
+  s << t;
+  return s.str();
 }
 
 template <typename InputIt>

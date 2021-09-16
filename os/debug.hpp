@@ -8,6 +8,8 @@
 #include <list>
 #include <map>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace os {
@@ -117,8 +119,7 @@ public:
     child_label_ = "heap vector";
   }
 
-  friend std::ostream&
-  operator<<(std::ostream& os, const hd& hd) {
+  friend std::ostream& operator<<(std::ostream& os, const hd& hd) {
     hex_dump(os, hd.buffer_, hd.bufsize_); // NOLINT
     if (hd.child_) os << std::setw(19) << hd.child_label_ << ":\n" << *(hd.child_);
     return os;
@@ -180,6 +181,11 @@ std::ostream& operator<<(std::ostream& stream, const std::map<T, U>& container) 
 
 template <typename T, typename U>
 std::ostream& operator<<(std::ostream& stream, const std::unordered_map<T, U>& container) {
+  return os::str::join(stream << '[', container, ", ", "]\n");
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& stream, const std::unordered_set<T>& container) {
   return os::str::join(stream << '[', container, ", ", "]\n");
 }
 
