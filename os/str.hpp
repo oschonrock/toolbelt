@@ -62,25 +62,41 @@ inline void toupper(std::string& s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 }
 
+template <typename...> constexpr std::false_type always_false{};
+
 // faster and stricter alternative to std::stol if you have a char*
-inline long parse_long(const char* str) {
+template <typename NumericType>
+inline NumericType parse(const char* str) {
   char* end; // NOLINT
-  errno    = 0;
-  long val = std::strtol(str, &end, 0);
-  if (end == str || *end != '\0' || errno == ERANGE)
-    throw std::invalid_argument("failed to covert");
+  errno = 0;
+  NumericType val;
+  if constexpr (std::is_same_v<NumericType, long>)
+    val = std::strtol(str, &end, 0);
+  else if constexpr (std::is_same_v<NumericType, long long>)
+    val = std::strtoll(str, &end, 0);
+  else if constexpr (std::is_same_v<NumericType, float>)
+    val = std::strtof(str, &end);
+  else if constexpr (std::is_same_v<NumericType, double>)
+    val = std::strtod(str, &end);
+  else if constexpr (std::is_same_v<NumericType, long double>)
+    val = std::strtold(str, &end);
+  else
+    static_assert(always_false<NumericType>, "don't know how to parse this type");
+        
+  if (end == str || *end != '\0' || errno == ERANGE) throw std::invalid_argument("failed to parse");
   return val;
 }
 
 // faster and stricter alternative to std::stoi if you have a char*
-inline int parse_int(const char* str) {
-  long long_val = parse_long(str);
+// relies on parse<long> with range check
+template <>
+inline int parse<int>(const char* str) {
+  long long_val = parse<long>(str);
   if (long_val < std::numeric_limits<int>::min() || long_val > std::numeric_limits<int>::max())
     throw std::range_error("int out of range");
   return static_cast<int>(long_val);
 }
 
-// clang-format off
 inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
   s.erase(0, s.find_first_not_of(delims));
 }
@@ -89,6 +105,7 @@ inline void rtrim(std::string& s, std::string_view delims = " \v\t\n\r") {
   s.erase(s.find_last_not_of(delims) + 1); // npos wraps to zero
 }
 
+// clang-format off
 inline void trim(std::string& s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); rtrim(s, delims); }
 
 inline std::string ltrim_copy(std::string s, std::string_view delims = " \v\t\n\r") { ltrim(s, delims); return s; }
