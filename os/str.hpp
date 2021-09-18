@@ -62,39 +62,39 @@ inline void toupper(std::string& s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 }
 
-template <typename...> constexpr std::false_type always_false{};
+template <typename...>
+constexpr std::false_type always_false{};
 
-// faster and stricter alternative to std::stol if you have a char*
+// faster and stricter alternative to std::stoi/stol/stof etc if you have a char*
 template <typename NumericType>
 inline NumericType parse(const char* str) {
-  char* end; // NOLINT
-  errno = 0;
-  NumericType val;
-  if constexpr (std::is_same_v<NumericType, long>)
-    val = std::strtol(str, &end, 0);
-  else if constexpr (std::is_same_v<NumericType, long long>)
-    val = std::strtoll(str, &end, 0);
-  else if constexpr (std::is_same_v<NumericType, float>)
-    val = std::strtof(str, &end);
-  else if constexpr (std::is_same_v<NumericType, double>)
-    val = std::strtod(str, &end);
-  else if constexpr (std::is_same_v<NumericType, long double>)
-    val = std::strtold(str, &end);
-  else
-    static_assert(always_false<NumericType>, "don't know how to parse this type");
-        
-  if (end == str || *end != '\0' || errno == ERANGE) throw std::invalid_argument("failed to parse");
-  return val;
-}
+  if constexpr (std::is_same_v<NumericType, int> || std::is_same_v<NumericType, unsigned>) {
+    long long_val = parse<long>(str);
+    if (long_val < std::numeric_limits<NumericType>::min() ||
+        long_val > std::numeric_limits<NumericType>::max())
+      throw std::range_error("out of range");
+    return static_cast<NumericType>(long_val);
+  } else {
+    char* end; // NOLINT
+    errno = 0;
+    NumericType val;
+    if constexpr (std::is_same_v<NumericType, long>)
+      val = std::strtol(str, &end, 0);
+    else if constexpr (std::is_same_v<NumericType, long long>)
+      val = std::strtoll(str, &end, 0);
+    else if constexpr (std::is_same_v<NumericType, float>)
+      val = std::strtof(str, &end);
+    else if constexpr (std::is_same_v<NumericType, double>)
+      val = std::strtod(str, &end);
+    else if constexpr (std::is_same_v<NumericType, long double>)
+      val = std::strtold(str, &end);
+    else
+      static_assert(always_false<NumericType>, "don't know how to parse this type");
 
-// faster and stricter alternative to std::stoi if you have a char*
-// relies on parse<long> with range check
-template <>
-inline int parse<int>(const char* str) {
-  long long_val = parse<long>(str);
-  if (long_val < std::numeric_limits<int>::min() || long_val > std::numeric_limits<int>::max())
-    throw std::range_error("int out of range");
-  return static_cast<int>(long_val);
+    if (end == str || *end != '\0' || errno == ERANGE)
+      throw std::invalid_argument("failed to parse");
+    return val;
+  }
 }
 
 inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
