@@ -1,5 +1,6 @@
 #pragma once
 
+#include "date/date.h"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -11,6 +12,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -91,10 +93,25 @@ inline NumericType parse(const char* str) {
     else
       static_assert(always_false<NumericType>, "don't know how to parse this type");
 
-    if (end == str || *end != '\0' || errno == ERANGE)
-      throw std::invalid_argument("failed to parse");
+    if (end == str || *end != '\0' || errno == ERANGE) throw std::domain_error("failed to parse");
     return val;
   }
+}
+
+// must set a utf8 locale before calling this
+inline std::size_t mb_strlen(const std::string_view s) {
+  std::size_t result = 0;
+  const char* ptr    = s.data();
+  const char* end    = ptr + s.size(); // NOLINT ptr arith
+  std::mblen(nullptr, 0);              // reset the conversion state. NOLINT not thread safe
+  while (ptr < end) {
+    int next = static_cast<int>(
+        std::mblen(ptr, static_cast<std::size_t>(end - ptr))); // NOLINT not thread safe
+    if (next == -1) throw std::runtime_error("mb_strlen(): conversion error");
+    ptr += next; // NOLINT ptr arith
+    ++result;
+  }
+  return result;
 }
 
 inline void ltrim(std::string& s, std::string_view delims = " \v\t\n\r") {
