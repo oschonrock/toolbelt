@@ -1,10 +1,12 @@
 #pragma once
 
 #include "date/date.h"
+#include "fast_float/fast_float.h"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -15,6 +17,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace os::str {
@@ -77,24 +80,30 @@ inline NumericType parse(const char* str) {
       throw std::range_error("out of range");
     return static_cast<NumericType>(long_val);
   } else {
-    char* end; // NOLINT
-    errno = 0;
     NumericType val;
-    if constexpr (std::is_same_v<NumericType, long>)
-      val = std::strtol(str, &end, 0);
-    else if constexpr (std::is_same_v<NumericType, long long>)
-      val = std::strtoll(str, &end, 0);
-    else if constexpr (std::is_same_v<NumericType, float>)
-      val = std::strtof(str, &end);
-    else if constexpr (std::is_same_v<NumericType, double>)
-      val = std::strtod(str, &end);
-    else if constexpr (std::is_same_v<NumericType, long double>)
-      val = std::strtold(str, &end);
-    else
-      static_assert(always_false<NumericType>, "don't know how to parse this type");
+    if constexpr (std::is_same_v<NumericType, double> || std::is_same_v<NumericType, float>) {
+      const auto* str_end = str + std::strlen(str);
+      auto [ptr, ec]      = fast_float::from_chars(str, str_end, val);
+      if (ec != std::errc() || ptr != str_end)
+        throw std::domain_error("fast_floast::from_chars couldn't parse double " +
+                                std::string(str));
+      return val;
+    } else {
+      char* end; // NOLINT
+      errno = 0;
 
-    if (end == str || *end != '\0' || errno == ERANGE) throw std::domain_error("failed to parse");
-    return val;
+      if constexpr (std::is_same_v<NumericType, long>)
+        val = std::strtol(str, &end, 0);
+      else if constexpr (std::is_same_v<NumericType, long long>)
+        val = std::strtoll(str, &end, 0);
+      else if constexpr (std::is_same_v<NumericType, long double>)
+        val = std::strtold(str, &end);
+      else
+        static_assert(always_false<NumericType>, "don't know how to parse this type");
+
+      if (end == str || *end != '\0' || errno == ERANGE) throw std::domain_error("failed to parse");
+      return val;
+    }
   }
 }
 
