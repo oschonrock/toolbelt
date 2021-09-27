@@ -72,7 +72,7 @@ constexpr std::false_type always_false{};
 
 // faster and stricter alternative to std::stoi/stol/stof etc if you have a char*
 template <typename NumericType>
-inline NumericType parse(const char* str, std::size_t len = ~0UL) {
+inline NumericType parse(const char* str, std::size_t len = ~0UL) { // NOLINT complexity
   if constexpr (std::is_same_v<NumericType, int> || std::is_same_v<NumericType, unsigned>) {
       long long_val = parse<long>(str, len);
     if (long_val < std::numeric_limits<NumericType>::min() ||
