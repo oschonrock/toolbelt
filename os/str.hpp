@@ -72,9 +72,9 @@ constexpr std::false_type always_false{};
 
 // faster and stricter alternative to std::stoi/stol/stof etc if you have a char*
 template <typename NumericType>
-inline NumericType parse(const char* str) {
+inline NumericType parse(const char* str, std::size_t len = ~0UL) {
   if constexpr (std::is_same_v<NumericType, int> || std::is_same_v<NumericType, unsigned>) {
-    long long_val = parse<long>(str);
+      long long_val = parse<long>(str, len);
     if (long_val < std::numeric_limits<NumericType>::min() ||
         long_val > std::numeric_limits<NumericType>::max())
       throw std::range_error("out of range");
@@ -82,10 +82,11 @@ inline NumericType parse(const char* str) {
   } else {
     NumericType val;
     if constexpr (std::is_same_v<NumericType, double> || std::is_same_v<NumericType, float>) {
-      const auto* str_end = str + std::strlen(str);
+      if (len == ~0UL) len = strlen(str); // prefer to have this passed in for performance
+      const auto* str_end = str + len;
       auto [ptr, ec]      = fast_float::from_chars(str, str_end, val);
       if (ec != std::errc() || ptr != str_end)
-        throw std::domain_error("fast_floast::from_chars couldn't parse double " +
+        throw std::domain_error("fast_float::from_chars couldn't parse double: " +
                                 std::string(str));
       return val;
     } else {
@@ -107,17 +108,18 @@ inline NumericType parse(const char* str) {
   }
 }
 
+
 // must set a utf8 locale before calling this
 inline std::size_t mb_strlen(const std::string_view s) {
   std::size_t result = 0;
   const char* ptr    = s.data();
-  const char* end    = ptr + s.size(); // NOLINT ptr arith
-  std::mblen(nullptr, 0);              // reset the conversion state. NOLINT not thread safe
+  const char* end    = ptr + s.size();
+  std::mblen(nullptr, 0); // reset the conversion state. NOLINT not thread safe
   while (ptr < end) {
     int next = static_cast<int>(
         std::mblen(ptr, static_cast<std::size_t>(end - ptr))); // NOLINT not thread safe
     if (next == -1) throw std::runtime_error("mb_strlen(): conversion error");
-    ptr += next; // NOLINT ptr arith
+    ptr += next;
     ++result;
   }
   return result;
