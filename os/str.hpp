@@ -71,7 +71,8 @@ inline void toupper(std::string& s) {
 template <typename...>
 constexpr std::false_type always_false{};
 
-// faster and stricter alternative to std::stoi/stol/stof etc if you have a char*
+// faster and stricter alternative to std::stoi/stol/stof etc if you have a char*.
+// float and double specialisations benefit if len is passsed (saves strlen)
 template <typename NumericType>
 inline NumericType parse(const char* str, std::size_t len = ~0UL) { // NOLINT complexity
   if constexpr (std::is_same_v<NumericType, int> || std::is_same_v<NumericType, unsigned>) {
