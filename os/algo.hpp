@@ -8,6 +8,7 @@
 #include <limits>
 #include <list>
 #include <numeric>
+#include <optional>
 #include <vector>
 
 namespace os::algo {
