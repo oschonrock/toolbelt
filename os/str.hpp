@@ -131,7 +131,7 @@ constexpr ReturnType parse_nonnegative_int(const char* begin, const char* end,
   // Check for overflow. Will never happen here
   const auto max = static_cast<std::uint64_t>(std::numeric_limits<ReturnType>::max());
   return num_digits == std::numeric_limits<ReturnType>::digits10 + 1 &&
-                 prev * 10ULL + std::uint64_t(p[-1] - '0') <= max
+                 prev * 10UL + std::uint64_t(p[-1] - '0') <= max
              ? static_cast<ReturnType>(value)
              : error_value;
 }
