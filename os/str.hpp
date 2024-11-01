@@ -241,7 +241,7 @@ void for_each_token(std::string_view buffer, const ActionCallback& action,
 
 inline std::vector<std::string> explode(const std::string& delims, const std::string& s) {
   std::vector<std::string> pieces;
-  auto                     start = 0UL;
+  std::size_t              start = 0;
   auto                     end   = s.find_first_of(delims);
   while (end != std::string::npos) {
     pieces.emplace_back(s.substr(start, end - start));
@@ -255,7 +255,7 @@ inline std::vector<std::string> explode(const std::string& delims, const std::st
 inline std::vector<std::string_view> explode_sv(const std::string_view& delims,
                                                 const std::string_view& sv) {
   std::vector<std::string_view> pieces;
-  auto                          start = 0UL;
+  std::size_t                   start = 0;
   auto                          end   = sv.find_first_of(delims);
   while (end != std::string::npos) {
     pieces.emplace_back(sv.substr(start, end - start));
