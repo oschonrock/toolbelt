@@ -1,13 +1,12 @@
 #pragma once
 
-#include "date/date.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <charconv>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
-#include <functional>
 #include <iostream>
 #include <limits>
 #include <list>
@@ -121,7 +120,7 @@ constexpr ReturnType parse_nonnegative_int(const char* begin, const char* end,
   const char*   p     = begin;
   do {
     prev  = value;
-    value = value * 10 + std::uint64_t(*p - '0');
+    value = value * 10 + static_cast<std::uint64_t>(*p - '0');
     ++p;
   } while (p != end && '0' <= *p && *p <= '9');
   auto num_digits = p - begin;
@@ -130,7 +129,7 @@ constexpr ReturnType parse_nonnegative_int(const char* begin, const char* end,
   // Check for overflow. Will never happen here
   const auto max = static_cast<std::uint64_t>(std::numeric_limits<ReturnType>::max());
   return num_digits == std::numeric_limits<ReturnType>::digits10 + 1 &&
-                 prev * 10UL + std::uint64_t(p[-1] - '0') <= max
+                 prev * 10UL + static_cast<std::uint64_t>(p[-1] - '0') <= max
              ? static_cast<ReturnType>(value)
              : error_value;
 }
