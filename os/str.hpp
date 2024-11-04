@@ -1,7 +1,6 @@
 #pragma once
 
 #include "date/date.h"
-#include "fast_float/fast_float.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -86,9 +85,9 @@ inline NumericType parse(const char* str, std::size_t len = ~0UL) { // NOLINT co
     if constexpr (std::is_same_v<NumericType, double> || std::is_same_v<NumericType, float>) {
       if (len == ~0UL) len = strlen(str); // prefer to have this passed in for performance
       const auto* str_end = str + len;
-      auto [ptr, ec]      = fast_float::from_chars(str, str_end, val);
+      auto [ptr, ec]      = std::from_chars(str, str_end, val);
       if (ec != std::errc() || ptr != str_end)
-        throw std::domain_error("fast_float::from_chars couldn't parse double: " +
+        throw std::domain_error("std::from_chars couldn't parse double: " +
                                 std::string(str));
       return val;
     } else {
